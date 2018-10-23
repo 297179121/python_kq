@@ -1,7 +1,11 @@
 from openpyxl import load_workbook
 import pymysql
 import time
+from datetime import datetime,timedelta, date
 import requests
+
+TIME_ON = "07:50"
+TIME_OFF = "16:35"
 
 
 def insert_database(list_line):
@@ -10,13 +14,18 @@ def insert_database(list_line):
     :param list_line: 列表数据，存放行的列表信息
     :return:
     """
-    connection = pymysql.connect("localhost", "root", "root", "attendance")
+    connection = get_connect()
     for line in list_line:
         with connection.cursor() as cursor:
             sql = " insert into bt_att_t (att_date, att_starttime, att_endtime, sign_holiday) values ( %s, %s, %s, %s ) "
             cursor.execute(sql, (line[0], line[1], line[2], line[3]))
     connection.commit()
     connection.close()
+
+
+def close_connect(connect):
+    connect.commit()
+    connect.close()
 
 
 def get_holiday_sign(list_date):
@@ -75,6 +84,40 @@ def read_excel(path):
 
     insert_database(list_line)
 
+
+def get_connect():
+    return pymysql.connect("localhost", "root", "root", "attendance")
+
+
+def get_overtime_in_holiday(month):
+    connect = get_connect()
+    with connect.cursor() as cursor:
+        sql = " select att_date, att_starttime, att_endtime from bt_att_t where att_starttime is not null and att_endtime is not null and sign_holiday<>0 and att_date like concat('%%', %s,'%%')"
+        cursor.executemany(sql, (month))
+        result = cursor.fetchall()
+    close_connect(connect)
+    for line in result:
+        date_datetime = datetime.strptime(line[0], "%Y-%m-%d")
+        time_date = date_datetime.date()
+
+        start_datetime = datetime.strptime(line[1], '%H:%M')
+        end_datetime = datetime.strptime(line[2], '%H:%M')
+
+        start_datetime = datetime.combine(time_date, start_datetime.time())
+        end_datetime = datetime.combine(time_date, end_datetime.time())
+    return result
+
+
+def get_calendar():
+    connect = get_connect()
+    with connect.cursor() as cursor:
+        cursor.execute(" select * from bt_att_t "
+                       "where att_date is not null and "
+                       "att_starttime is not null and "
+                       "att_endtime is not null and sign_holiday<>0 ")
+
+        result = cursor.fetchall()
+        print(result)
 
 read_excel('C:\\Users\\yhr\\Desktop\\考勤.xlsx')
 
