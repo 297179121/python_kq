@@ -42,7 +42,10 @@
             var month = view.intervalStart.format("YYYY-MM");
 
             $.getJSON("/ajax_demo", {"month":month}, function(reponse){
-                console.log(reponse);
+                if(reponse.status==200){
+                    var events = reponse.content.data;
+                    calendar.fullCalendar("addEventSource", events )
+                }
             })
 
         });
