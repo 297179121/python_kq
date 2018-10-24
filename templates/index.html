@@ -35,18 +35,28 @@
 
             var calendar = $('#calendar').fullCalendar({
                 editable: true,
-                eventLimit: true
-            });
+                eventLimit: true,
+                eventMouseover:function(event, jsEvent, view){
+                    this.title = event.tooltip
+                },
+                viewRender: function( view, element ){
+                    var month = view.intervalStart.format("YYYY-MM");
+                    $.getJSON("/ajax_demo", {"month":month}, function(reponse){
+                        if(reponse.status==200){
+                            var events = reponse.content.data;
+                            var clientEvents = calendar.fullCalendar("clientEvents", function(event){
+                                return event.start.format("YYYY-MM") == month
+                            })
 
-            var view = calendar.fullCalendar('getView');
-            var month = view.intervalStart.format("YYYY-MM");
-
-            $.getJSON("/ajax_demo", {"month":month}, function(reponse){
-                if(reponse.status==200){
-                    var events = reponse.content.data;
-                    calendar.fullCalendar("addEventSource", events )
+                            if( clientEvents.length>0 ){
+                                calendar.fullCalendar("updateEvents", events)
+                            }else{
+                                calendar.fullCalendar("addEventSource", events)
+                            }
+                        }
+                    })
                 }
-            })
+            });
 
         });
     </script>
