@@ -124,6 +124,15 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# 添加 img 、 css 和 js 等静态文件目录
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+STATICFILES_DIRS = (
+    ("css", os.path.join(STATIC_ROOT, 'css')),
+    ("img", os.path.join(STATIC_ROOT, 'img')),
+    ("js", os.path.join(STATIC_ROOT, 'js')),
+    ("fonts", os.path.join(STATIC_ROOT, 'fonts')),
+)
+
 # 导入excel需要的第三方包
 FILE_UPLOAD_HANDLERS = ("django_excel.ExcelMemoryFileUploadHandler",
                         "django_excel.TemporaryExcelFileUploadHandler")
