@@ -36,14 +36,14 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    'django.contrib.staticfiles'
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -124,13 +124,8 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-# 添加 img 、 css 和 js 等静态文件目录
-STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
 STATICFILES_DIRS = (
-    ("css", os.path.join(STATIC_ROOT, 'css')),
-    ("img", os.path.join(STATIC_ROOT, 'img')),
-    ("js", os.path.join(STATIC_ROOT, 'js')),
-    ("fonts", os.path.join(STATIC_ROOT, 'fonts')),
+    os.path.join(BASE_DIR, "static"),
 )
 
 # 导入excel需要的第三方包
