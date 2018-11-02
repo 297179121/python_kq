@@ -2,7 +2,7 @@ import pymysql
 from django.shortcuts import render
 from django.http import HttpResponse
 from django_ajax.decorators import ajax
-from .demo.excel import get_calendar_dates
+from .demo.excel import get_calendar_dates, add_kq_content
 # Create your views here.
 
 
@@ -29,3 +29,11 @@ def ajax_demo(request):
     #         line = list(head)
     #         print(line)
     return {'data': result}
+
+
+@ajax
+def ajax_add_kq_content(request):
+    content = request.POST.get("content")
+    day = request.POST.get("date")
+    add_kq_content(content, day)
+    return {'data': day}

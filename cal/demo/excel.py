@@ -6,6 +6,16 @@ import requests
 
 TIME_ON_STRING = "07:50"
 TIME_OFF_STRING = "16:35"
+TIME_COST_HOURS = 7.5
+
+
+def export_overtime_word(date_format_month):
+    connection = __get_connect__()
+    with connection.cursor() as cursor:
+        sql = " select att_date from bt_att_t where att_date like %s "
+        cursor.execute(sql, [date_format_month])
+        result = cursor.fetchall()
+    return
 
 
 def insert_database(list_line):
@@ -14,7 +24,7 @@ def insert_database(list_line):
     :param list_line: 列表数据，存放行的列表信息
     :return:
     """
-    connection = get_connect()
+    connection = __get_connect__()
     for line in list_line:
         with connection.cursor() as cursor:
             sql = " insert into bt_att_t (att_date, att_starttime, att_endtime, sign_holiday) values ( %s, %s, %s, %s ) "
@@ -85,12 +95,21 @@ def read_excel(path):
     insert_database(list_line)
 
 
-def get_connect():
-    return pymysql.connect("localhost", "root", "root", "attendance")
+def __get_connect__():
+    return pymysql.connect("localhost", "root", "root", "attendance", charset='utf8')
+
+
+def add_kq_content(content, day_of_month):
+    connect = __get_connect__()
+    with connect.cursor() as cursor:
+        sql = " update bt_att_t set content = %s where att_date = %s "
+        cursor.execute(sql, [content, day_of_month])
+    connect.commit()
+    connect.close()
 
 
 def get_calendar_dates(month):
-    connect = get_connect()
+    connect = __get_connect__()
     with connect.cursor() as cursor:
         month = "%" + month + "%"
         sql = """
@@ -106,6 +125,8 @@ def get_calendar_dates(month):
             end_str = line[2]
             holiday_int = line[3]
             date_dict = get_base_dict(date_str, start_str, end_str, holiday_int)
+            # 时间差
+            delta = None
 
             date_datetime = datetime.datetime.strptime(date_str, "%Y-%m-%d")
             time_date = date_datetime.date()
@@ -118,26 +139,28 @@ def get_calendar_dates(month):
                 start_datetime = datetime.datetime.strptime(start_str, '%H:%M')
                 start_datetime = datetime.datetime.combine(time_date, start_datetime.time())
                 # 上午加班
-                is_overtime_start = (on_time - start_datetime).seconds > 1800
+                is_overtime_start = on_time > start_datetime and (on_time - start_datetime).seconds > 1800
                 # 迟到
-                is_late = (on_time - start_datetime).seconds < 0
+                is_late = on_time < start_datetime and (on_time - start_datetime).seconds < 0
                 # 上午加班耗时
                 overtime_hours_start = abs(round((on_time - start_datetime).seconds/3600, 1))
+
             if end_str is not None:
                 end_datetime = datetime.datetime.strptime(end_str, '%H:%M')
                 end_datetime = datetime.datetime.combine(time_date, end_datetime.time())
                 # 下午加班
-                is_overtime_end = (end_datetime - on_time).seconds > 1800
+                is_overtime_end = end_datetime > off_time and (end_datetime - off_time).seconds > 1800
                 # 早退
-                is_leave_early = (end_datetime - on_time).seconds < 0
+                is_leave_early = end_datetime < off_time and (end_datetime - off_time).seconds < 0
                 # 下午加班耗时
-                overtime_hours_end = abs(round((end_datetime - on_time).seconds/3600, 1))
+                overtime_hours_end = abs(round((end_datetime - off_time).seconds/3600, 1))
 
             # 节假日加班
             if holiday_int != 0 and start_str is not None and end_str is not None:
                 hours = round((end_datetime-start_datetime).seconds/3600, 1)
                 title = "节假日加班%s小时" % str(hours)
                 json = get_overtime_dict(date_dict, title)
+                set_cost_hours(json, hours)
                 list_dict.append(json)
             # 工作日 and 上午打卡 and 下午打卡
             elif holiday_int == 0 and start_str is not None and end_str is not None:
@@ -146,21 +169,25 @@ def get_calendar_dates(month):
                     hours = overtime_hours_start + overtime_hours_end
                     title = "工作日加班%s小时" % str(hours)
                     json = get_overtime_dict(date_dict, title)
+                    set_cost_hours(json, hours)
                     list_dict.append(json)
                 # 迟到早退
                 elif is_late and is_leave_early:
                     title = "上班迟到%s，下班早退%s" % (str(overtime_hours_start), str(overtime_hours_end))
                     json = get_late_early_dict(date_dict, title)
+                    set_cost_hours(json, -(overtime_hours_start+overtime_hours_end))
                     list_dict.append(json)
                 # 迟到
                 elif is_late:
                     title = "上班迟到%s" % (str(overtime_hours_start))
                     json = get_late_early_dict(date_dict, title)
+                    set_cost_hours(json, -overtime_hours_start)
                     list_dict.append(json)
                 # 早退
                 elif is_leave_early:
                     title = "下班早退%s" % (str(overtime_hours_end))
                     json = get_late_early_dict(date_dict, title)
+                    set_cost_hours(json, -overtime_hours_end)
                     list_dict.append(json)
             # 工作日 or 矿工 or 缺少上午或下午打卡记录
             elif holiday_int == 0:
@@ -168,6 +195,7 @@ def get_calendar_dates(month):
                 if start_str is None and end_str is None:
                     title = "矿工"
                     json = get_absent_dict(date_dict, title)
+                    set_cost_hours(json, -TIME_COST_HOURS)
                     list_dict.append(json)
                 # 上午未打卡
                 elif start_str is None and end_str is not None:
@@ -193,6 +221,10 @@ def get_calendar_dates(month):
                     list_dict.append(json)
 
     return list_dict
+
+
+def set_cost_hours(date_dict, cost_hours):
+    date_dict["cost_hours"] = cost_hours
 
 
 def __get_dict__(date_dict, title, color):
@@ -264,12 +296,14 @@ def get_incomplete_dict(date_dict, title):
 def get_base_dict(date_string, time_start_work, time_end_work, holiday):
 
     tooltip = ""
-    if time_start_work is not None:
+    if time_start_work is not None and time_end_work is None:
         tooltip = "上班打卡时间："+time_start_work+" \n下班打卡时间：未打卡"
-    if time_end_work is not None:
+    elif time_start_work is None and time_end_work is not None:
         tooltip = "上班打卡时间：未打卡 \n下班打卡时间："+time_end_work
-    if time_start_work is None and time_end_work is None:
+    elif time_start_work is None and time_end_work is None:
         tooltip = "上班打卡时间：未打卡 \n下班打卡时间：未打卡"
+    elif time_start_work is not None and time_end_work is not None:
+        tooltip = "上班打卡时间："+time_start_work+" \n下班打卡时间："+time_end_work
 
     base = {"start": date_string, "end": date_string, "tooltip": tooltip}
 
