@@ -1,7 +1,7 @@
+{% load staticfiles %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    {% load static %}
     <meta charset="UTF-8">
     <title>考勤系统</title>
     <script src="http://libs.baidu.com/jquery/2.0.0/jquery.min.js"></script>
@@ -28,6 +28,10 @@
             margin: 0 auto;
         }
 
+        .writed_kq{
+            border: 2px solid green;
+        }
+
     </style>
 </head>
 <body>
@@ -40,9 +44,24 @@
             var calendar = $('#calendar').fullCalendar({
                 editable: true,
                 eventLimit: true,
-                dayClick: function(date, jsEvent, view){
-                    var param = {"date": date.format("YYYY-MM-dd")}
-                    window.open("")
+                dayClick: function( date, jsEvent, view, resourceObj ){
+                    var elemDate = jsEvent.toElement;
+                    var day = date.format("YYYY-MM-DD");
+                    var content = prompt("请输入"+day+"的考勤任务")
+                    var param = {"date": day, "content": content}
+                    var clientEvent = calendar.fullCalendar("clientEvents", function(event){
+                        return event.start.format("YYYY-MM-DD") == date.format("YYYY-MM-DD")
+                    })
+
+                    $.post("/ajax_add_kq_content", param, function(reponse){
+                        getReponseData(reponse, function(data){
+                            layer.alert("考勤信息添加成功");
+                            elemDate.title = content;
+                            clientEvent[0]["className"].push("writed_kq");
+                            console.log(clientEvent[0])
+                            calendar.fullCalendar("updateEvents", clientEvent)
+                        })
+                    }, "json")
                 },
                 dayRender: function(date, cell){
 
@@ -56,23 +75,38 @@
                 viewRender: function( view, element ){
                     var month = view.intervalStart.format("YYYY-MM");
                     $.getJSON("/ajax_demo", {"month":month}, function(reponse){
-                        if(reponse.status==200){
-                            var events = reponse.content.data;
+                        getReponseData( reponse, function(data){
                             var clientEvents = calendar.fullCalendar("clientEvents", function(event){
                                 return event.start.format("YYYY-MM") == month
                             })
 
                             if( clientEvents.length>0 ){
-                                calendar.fullCalendar("updateEvents", events)
+                                calendar.fullCalendar("updateEvents", data)
                             }else{
-                                calendar.fullCalendar("addEventSource", events)
+                                calendar.fullCalendar("addEventSource", data)
                             }
-                        }
+                        } );
+
                     })
                 }
             });
-
         });
+
+        function getReponseData( reponse, success ){
+            if( reponse.status==200 && reponse.content && reponse.content.data ){
+                if(  typeof(success)=="function" ){
+                    success(reponse.content.data)
+                }else{
+                    return reponse.content.data;
+                }
+            }else if( reponse.status!=200 ){
+                layer.alert("服务器错误");
+            }else if( reponse.content===undefined ){
+                console.log(reponse);
+                layer.alert("reponse的数据格式有变动，解析失败");
+            }
+        }
+
     </script>
 </body>
 </html>
